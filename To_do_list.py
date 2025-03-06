@@ -1,6 +1,8 @@
 import tkinter as tk
 from tkinter import messagebox, ttk
 import datetime
+import json
+import os
 from tkinter.font import Font
 
 
@@ -10,6 +12,9 @@ class ProfessionalToDoApp:
         self.root.title("TaskMaster Pro")
         self.root.geometry("800x700")
         self.root.minsize(650, 600)
+        
+        # Set the file path for saving/loading tasks
+        self.tasks_file = "taskmaster_tasks.json"
         
         # Custom color scheme
         self.colors = {
@@ -50,6 +55,12 @@ class ProfessionalToDoApp:
         # Apply some padding to the entire UI
         for child in self.root.winfo_children():
             child.pack_configure(padx=10, pady=5)
+            
+        # Load tasks from file
+        self.load_tasks_from_file()
+        
+        # Bind the window close event to save tasks
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
             
     def create_header(self):
         """Create the application header with title and date"""
@@ -369,6 +380,20 @@ class ProfessionalToDoApp:
         )
         self.clear_button.pack(side=tk.LEFT, padx=5)
         
+        # Add Save button
+        self.save_button = tk.Button(
+            footer_frame, 
+            text="Save Tasks", 
+            command=self.save_tasks_to_file, 
+            bg=self.colors["secondary"], 
+            fg="white", 
+            font=self.button_font, 
+            padx=15, 
+            pady=8, 
+            relief=tk.FLAT
+        )
+        self.save_button.pack(side=tk.RIGHT, padx=5)
+        
     def add_task(self):
         """Adds a new task to the list with category, priority and due date"""
         task = self.task_entry.get().strip()
@@ -416,6 +441,9 @@ class ProfessionalToDoApp:
         # Update stats
         self.update_stats()
         
+        # Save tasks to file
+        self.save_tasks_to_file()
+        
     def remove_task(self):
         """Removes the selected task"""
         try:
@@ -435,6 +463,9 @@ class ProfessionalToDoApp:
             
             # Update stats
             self.update_stats()
+   
+            # Save tasks to file
+            self.save_tasks_to_file()
         except IndexError:
             messagebox.showwarning("Warning", "Please select a task to remove!")
         
@@ -481,6 +512,9 @@ class ProfessionalToDoApp:
             
             # Update stats
             self.update_stats()
+ 
+            # Save tasks to file
+            self.save_tasks_to_file()
         except IndexError:
             messagebox.showwarning("Warning", "Please select a task to mark as done!")
     
@@ -500,7 +534,9 @@ class ProfessionalToDoApp:
             self.tasks.clear()
             
             # Update stats
-            self.update_stats()
+            self.update_stats() 
+            # Save tasks to file (which will be empty)
+            self.save_tasks_to_file()
     
     def filter_tasks(self, filter_type):
         """Filter tasks based on status"""
@@ -537,6 +573,85 @@ class ProfessionalToDoApp:
         
         self.total_tasks_label.config(text=f"Total Tasks: {total_tasks}")
         self.completed_tasks_label.config(text=f"Completed: {completed_tasks}")
+
+    def save_tasks_to_file(self):
+        """Save tasks to a JSON file"""
+        try:
+            with open(self.tasks_file, 'w') as file:
+                json.dump(self.tasks, file)
+                
+            # Optional: Show a brief status message
+            status_label = tk.Label(
+                self.root, 
+                text="Tasks saved successfully!", 
+                bg=self.colors["accent"],
+                fg="white",
+                font=self.button_font,
+                padx=10,
+                pady=5
+            )
+            status_label.place(relx=0.5, rely=0.9, anchor="center")
+            # Remove the message after 2 seconds
+            self.root.after(2000, status_label.destroy)
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save tasks: {str(e)}")
+    
+    def load_tasks_from_file(self):
+        """Load tasks from a JSON file"""
+        try:
+            if os.path.exists(self.tasks_file):
+                with open(self.tasks_file, 'r') as file:
+                    self.tasks = json.load(file)
+                    
+                # Clear existing items in treeview
+                for item in self.task_tree.get_children():
+                    self.task_tree.delete(item)
+                    
+                # Add tasks to treeview
+                for task in self.tasks:
+                    item_id = self.task_tree.insert("", tk.END, values=(
+                        task["task"], task["category"], task["priority"], 
+                        task["due_date"], task["status"]
+                    ))
+                    
+                    # Apply styling
+                    if task["status"] == "Completed":
+                        self.task_tree.tag_configure(f"completed_{task['task']}", background=self.colors["completed"])
+                        self.task_tree.item(item_id, tags=(f"completed_{task['task']}",))
+                    elif task["priority"] == "High":
+                        self.task_tree.tag_configure(f"priority_{task['id']}", background="#FFEBEE")
+                        self.task_tree.item(item_id, tags=(f"priority_{task['id']}",))
+                    elif task["priority"] == "Medium":
+                        self.task_tree.tag_configure(f"priority_{task['id']}", background="#FFF8E1")
+                        self.task_tree.item(item_id, tags=(f"priority_{task['id']}",))
+                
+                # Update stats
+                self.update_stats()
+                
+                # Show a brief status message
+                if self.tasks:
+                    status_label = tk.Label(
+                        self.root, 
+                        text=f"Loaded {len(self.tasks)} tasks from file", 
+                        bg=self.colors["secondary"],
+                        fg="white",
+                        font=self.button_font,
+                        padx=10,
+                        pady=5
+                    )
+                    status_label.place(relx=0.5, rely=0.9, anchor="center")
+                    # Remove the message after 2 seconds
+                    self.root.after(2000, status_label.destroy)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load tasks: {str(e)}")
+    
+    def on_closing(self):
+        """Handle window closing event"""
+        # Save tasks before closing
+        self.save_tasks_to_file()
+        # Destroy the window
+        self.root.destroy()
 
 
 if __name__ == "__main__":
